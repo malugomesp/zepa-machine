@@ -303,7 +303,8 @@ func runTUIWithMachine(m *machine.Machine) {
 			registersView.SetText(m.DebugRegistersString())
 
 		case "pcb":
-			pcbView.SetText(m.GetKernelVarsString())
+			refreshAll()
+			appendOutput("[sys] PCB vector refreshed")
 
 		case "refresh":
 			refreshAll()
