@@ -573,7 +573,10 @@ func (m *Machine) execute(inst Instruction) int {
 }
 
 func (m *Machine) Boot() {
+	m.mu.Lock()
 	m.registers[w0] = uint32(len(m.memory))
+	m.mu.Unlock()
+
 	clockCounter := 0
 
 	var decodedInstruction Instruction
@@ -585,16 +588,18 @@ func (m *Machine) Boot() {
 			<-m.StepChan
 		}
 
+		m.mu.Lock()
 		if !m.fetch() {
+			m.mu.Unlock()
 			goto endStep
 		}
 
 		decodedInstruction, ok = m.decode()
 		if !ok {
+			m.mu.Unlock()
 			goto endStep
 		}
 
-		m.mu.Lock()
 		if m.checkIllegalRegisterAccess(decodedInstruction) {
 			m.exception(faultExc)
 			m.mu.Unlock()
@@ -652,6 +657,9 @@ func (m *Machine) LoadBuffer(buffer []byte) bool {
 		return false
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	const oneGB = 1 << 30
 	bufferIndex := oneGB - bufferSize
 	clear(m.memory[bufferIndex:oneGB])
@@ -662,10 +670,14 @@ func (m *Machine) LoadBuffer(buffer []byte) bool {
 }
 
 func (m *Machine) SetKillFlag() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.killFlag = true
 }
 
 func (m *Machine) SetInputFlag() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.inputFlag = true
 }
 
@@ -674,8 +686,15 @@ func (m *Machine) IsDebugMode() bool {
 }
 
 func (m *Machine) GetRegisters() map[Register]uint32 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-	return m.registers
+	registers := make(map[Register]uint32, len(m.registers))
+	for register, value := range m.registers {
+		registers[register] = value
+	}
+
+	return registers
 }
 
 func (m *Machine) GetInstructionsExecuted() uint64 {
